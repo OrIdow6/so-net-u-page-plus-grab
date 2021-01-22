@@ -52,9 +52,9 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20210122.01'
+VERSION = '20210122.02'
 USER_AGENT = 'Archive Team'
-TRACKER_ID = 'so-net-u-plus'
+TRACKER_ID = 'so-net-u-page-plus'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
 
 
@@ -142,7 +142,7 @@ def get_hash(filename):
 
 CWD = os.getcwd()
 PIPELINE_SHA1 = get_hash(os.path.join(CWD, 'pipeline.py'))
-LUA_SHA1 = get_hash(os.path.join(CWD, 'so-net-u-plus.lua'))
+LUA_SHA1 = get_hash(os.path.join(CWD, 'so-net-u-page-plus.lua'))
 
 def stats_id_function(item):
     d = {
@@ -161,7 +161,7 @@ class WgetArgs(object):
             '-U', USER_AGENT,
             '-nv',
             '--content-on-error',
-            '--lua-script', 'so-net-u-plus.lua',
+            '--lua-script', 'so-net-u-page-plus.lua',
             '-o', ItemInterpolation('%(item_dir)s/wget.log'),
             '--no-check-certificate',
             '--output-document', ItemInterpolation('%(item_dir)s/wget.tmp'),
@@ -178,8 +178,8 @@ class WgetArgs(object):
             '--waitretry', '30',
             '--warc-file', ItemInterpolation('%(item_dir)s/%(warc_file_base)s'),
             '--warc-header', 'operator: Archive Team',
-            '--warc-header', 'so-net-u-plus-dld-script-version: ' + VERSION,
-            '--warc-header', ItemInterpolation('so-net-u-plus-item: %(item_name)s'),
+            '--warc-header', 'so-net-u-page-plus-dld-script-version: ' + VERSION,
+            '--warc-header', ItemInterpolation('so-net-u-page-plus: %(item_name)s'),
             '--warc-dedup-url-agnostic',
         ]
 
@@ -190,7 +190,7 @@ class WgetArgs(object):
         item['item_value'] = item_value
 
         if item_type == "userdir":
-            wget_args.extend(['--warc-header', 'so-net-u-plus-userdir: ' + item_value])
+            wget_args.extend(['--warc-header', 'so-net-u-page-plus-userdir: ' + item_value])
 
             hostname = item_value.split("/")[0]
             user_dir_name = item_value.split("/")[1]
@@ -218,10 +218,10 @@ class WgetArgs(object):
 # This will be shown in the warrior management panel. The logo should not
 # be too big. The deadline is optional.
 project = Project(
-    title = 'smackjeeves',
+    title = 'So-Net U-Page+',
     project_html = '''
     <img class="project-logo" alt="logo" src="https://www.archiveteam.org/images/Archiveteamsmall.png?959ea" height="50px"/>
-    <h2>Smack Jeeves <span class="links"><a href="https://smackjeeves.com/">Website</a> &middot; <a href="http://tracker.archiveteam.org/smackjeeves/">Leaderboard</a></span></h2>
+    <h2>So-Net U-Page+ <span class="links"><a href="https://www.so-net.ne.jp/option/upp/">Website</a> &middot; <a href="http://tracker.archiveteam.org/so-net-u-page-plus/">Leaderboard</a></span></h2>
     ''',
 # may cause errors on different python versions.
 #    utc_deadline = datetime.datetime.fromisoformat('2020-12-31 00:00:00+00:00')
@@ -231,7 +231,7 @@ pipeline = Pipeline(
     CheckIP(),
     GetItemFromTracker('http://%s/%s' % (TRACKER_HOST, TRACKER_ID), downloader,
         VERSION),
-    PrepareDirectories(warc_prefix='so-net-u-plus'),
+    PrepareDirectories(warc_prefix='so-net-u-page-plus'),
     WgetDownload(
         WgetArgs(),
         max_tries=1,

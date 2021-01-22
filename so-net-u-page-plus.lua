@@ -88,7 +88,7 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   
   -- This will get all external links (including external page requisites)
   if allowed(parenturl) then
-    print("Recursing to " .. url .. " from " .. parenturl)
+    --print("Recursing to " .. url .. " from " .. parenturl)
     external_links[url] = true
     addedtolist[url] = true
     return true
@@ -96,7 +96,7 @@ wget.callbacks.download_child_p = function(urlpos, parent, depth, start_url_pars
   -- Get stylesheets and page requisites of linked external pages
   -- (redirects will cause it to get nothing, but it's better than always getting nothing)
   if urlpos["link_inline_p"] == 1 or urlpos["link_expect_css"] == 1 and external_links[parenturl] == true  then
-    print("Getting requisite " .. url .. " from " .. parenturl)
+    --print("Getting requisite " .. url .. " from " .. parenturl)
     addedtolist[url] = true
     return true
   end

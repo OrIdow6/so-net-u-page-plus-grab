@@ -52,7 +52,7 @@ if not WGET_AT:
 VERSION = '20210126.02'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'so-net-u-page-plus'
-TRACKER_HOST = 'trackerproxy.archiveteam.org'
+TRACKER_HOST = 'trackerproxy.archiveteam.org.testing'
 MULTI_ITEM_SIZE = 1 # KEEP 1
 
 
@@ -220,6 +220,22 @@ class WgetArgs(object):
                 wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.htm'.format(hostname, user_dir_name))
                 wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.html'.format(hostname, user_dir_name))
                 wget_args.append('http://{}.upp.so-net.ne.jp/{}'.format(hostname, user_dir_name))
+            elif item_type == "gyaonejp":
+                wget_args.extend(['--warc-header', 'so-net-u-page-plus-gyaonejp: ' + item_value])
+                hostname = item_value.split("/")[0]
+                user_dir_name = item_value.split("/")[1]
+                wget_args.append('http://{}.gyao.ne.jp/{}/'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gyao.ne.jp/{}/index.htm'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gyao.ne.jp/{}/index.html'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gyao.ne.jp/{}'.format(hostname, user_dir_name))
+            elif item_type == "gate":
+                wget_args.extend(['--warc-header', 'so-net-u-page-plus-gate: ' + item_value])
+                hostname = item_value.split("/")[0]
+                user_dir_name = item_value.split("/")[1]
+                wget_args.append('http://{}.gate01.com/{}/'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gate01.com/{}/index.htm'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gate01.com/{}/index.html'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.gate01.com/{}'.format(hostname, user_dir_name))
             else:
                 raise ValueError('item_type not supported.')
 

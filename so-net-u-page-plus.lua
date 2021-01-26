@@ -29,6 +29,7 @@ local pages_covered = {}
 
 local item_host = nil
 local item_user_dir = nil
+local de_facto_item_type = nil
 
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
@@ -63,10 +64,28 @@ allowed = function(url)
 
   local a, b = string.match(url, "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([0-9a-zA-Z%-_]+)")
   if a and b then
-    if a == item_host and b == item_user_dir then
+    if de_facto_item_type == "userdir" and a == item_host and b == item_user_dir then
       return true
     else
       discovered["userdir:" .. a .. "/" .. b] = true
+    end
+  end
+
+  local a, b = string.match(url, "^https?://([^%.]+)%.gyao%.ne%.jp/([0-9a-zA-Z%-_]+)")
+  if a and b then
+    if de_facto_item_type == "gyaonejp" and a == item_host and b == item_user_dir then
+      return true
+    else
+      discovered["gyaonejp:" .. a .. "/" .. b] = true
+    end
+  end
+
+  local a, b = string.match(url, "^https?://([^%.]+)%.gate01%.com/([0-9a-zA-Z%-_]+)")
+  if a and b then
+    if de_facto_item_type == "gate" and a == item_host and b == item_user_dir then
+      return true
+    else
+      discovered["gate:" .. a .. "/" .. b] = true
     end
   end
 
@@ -218,12 +237,32 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   io.stdout:flush()
 
   local a, b = string.match(url["url"], "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([^/]+)/$")
-  if a and b and not item_host and not item_user_dir then
+  if a and b and not item_host and not item_user_dir and not de_facto_item_type then
     io.stdout:write("Archiving item userdir:" .. a .. "/" .. b .. ".\n")
     io.stdout:flush()
     item_host = a
     item_user_dir = b
+    de_facto_item_type = 'userdir'
   end
+
+  local a, b = string.match(url["url"], "https?://([^%.]+)%.gyao%.ne%.jp/([^/]+)/$")
+  if a and b and not item_host and not item_user_dir and not de_facto_item_type then
+    io.stdout:write("Archiving item gyaonejp:" .. a .. "/" .. b .. ".\n")
+    io.stdout:flush()
+    item_host = a
+    item_user_dir = b
+    de_facto_item_type = 'gyaonejp'
+  end
+
+  local a, b = string.match(url["url"], "https?://([^%.]+)%.gate01%.com/([^/]+)/$")
+  if a and b and not item_host and not item_user_dir and not de_facto_item_type then
+    io.stdout:write("Archiving item gate:" .. a .. "/" .. b .. ".\n")
+    io.stdout:flush()
+    item_host = a
+    item_user_dir = b
+    de_facto_item_type = 'gate'
+  end
+
 
   if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
@@ -285,6 +324,9 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     file:write(url .. "\n")
   end
   file:close()]]
+  if 1 == 1 then -- TESTING
+    return nil
+  end
   local items = nil
   for item, _ in pairs(discovered) do
     print('found item', item)

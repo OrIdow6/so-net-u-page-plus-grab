@@ -59,9 +59,13 @@ allowed = function(url)
     tested[s] = tested[s] + 1
   end
 
+  if string.match(url, "/////") then
+    return false
+  end
+
   local item_user_dir_escaped = string.gsub(item_user_dir, '%-', '%%-')
 
-  local a, b = string.match(url, "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([0-9a-zA-Z%-_]+)")
+  local a, b = string.match(url, "^http://([^%.]+)%.upp%.so%-net%.ne%.jp/([0-9a-zA-Z%-_]+)")
   if a and b then
     if a == item_host and b == item_user_dir then
       return true

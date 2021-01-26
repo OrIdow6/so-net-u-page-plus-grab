@@ -27,6 +27,9 @@ end
 local ids = {}
 local pages_covered = {}
 
+local item_host = nil
+local item_user_dir = nil
+
 for ignore in io.open("ignore-list", "r"):lines() do
   downloaded[ignore] = true
   downloaded[string.gsub(ignore, '^https', 'http', 1)] = true
@@ -215,7 +218,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   io.stdout:flush()
 
   local a, b = string.match(url["url"], "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([^/]+)/$")
-  if a and b then
+  if a and b and not item_host and not item_user_dir then
     io.stdout:write("Archiving item userdir:" .. a .. "/" .. b .. ".\n")
     io.stdout:flush()
     item_host = a

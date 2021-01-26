@@ -4,10 +4,10 @@ local urlparse = require("socket.url")
 local http = require("socket.http")
 JSON = assert(loadfile "JSON.lua")()
 
-local item_value = os.getenv('item_value')
-local item_type = os.getenv('item_type')
 local item_dir = os.getenv('item_dir')
 local warc_file_base = os.getenv('warc_file_base')
+local item_value = nil
+local item_type = nil
 
 local url_count = 0
 local tries = 0
@@ -16,12 +16,7 @@ local addedtolist = {}
 local abortgrab = false
 
 local external_links = {}
-
-if item_type == "userdir" then
-  item_host = string.match(item_value, '^([^/]+)/.+')
-  item_user_dir = string.match(item_value, '^[^/]+/(.+)')
-end
-
+local discovered = {}
 
 if urlparse == nil or http == nil then
   io.stdout:write("socket not corrently installed.\n")
@@ -63,8 +58,13 @@ allowed = function(url)
 
   local item_user_dir_escaped = string.gsub(item_user_dir, '%-', '%%-')
 
-  if string.match(url, "^https?://" .. item_host .. "%.upp%.so%-net%.ne%.jp/" .. item_user_dir_escaped .. "/") then
-    return true
+  local a, b = string.match(url, "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([0-9a-zA-Z%-_]+)")
+  if a and b then
+    if a == item_host and b == item_user_dir then
+      return true
+    else
+      discovered["userdir:" .. a .. "/" .. b] = true
+    end
   end
 
   return false
@@ -214,6 +214,14 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   io.stdout:write(url_count .. "=" .. status_code .. " " .. url["url"] .. "  \n")
   io.stdout:flush()
 
+  local a, b = string.match(url["url"], "^https?://([^%.]+)%.upp%.so%-net%.ne%.jp/([^/]+)/$")
+  if a and b then
+    io.stdout:write("Archiving item userdir:" .. a .. "/" .. b .. ".\n")
+    io.stdout:flush()
+    item_host = a
+    item_user_dir = b
+  end
+
   if status_code >= 300 and status_code <= 399 then
     local newloc = urlparse.absolute(url["url"], http_stat["newloc"])
     if downloaded[newloc] == true or addedtolist[newloc] == true
@@ -268,6 +276,41 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   return wget.actions.NOTHING
 end
 
+wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total_downloaded_bytes, total_download_time)
+  --[[local file = io.open(item_dir .. '/' .. warc_file_base .. '_bad-items.txt', 'w')
+  for url, _ in pairs(bad_items) do
+    file:write(url .. "\n")
+  end
+  file:close()]]
+  local items = nil
+  for item, _ in pairs(discovered) do
+    print('found item', item)
+    if items == nil then
+      items = item
+    else
+      items = items .. "\0" .. item
+    end
+  end
+  if items ~= nil then
+    local tries = 0
+    while tries < 10 do
+      local body, code, headers, status = http.request(
+        "http://blackbird-amqp.meo.ws:23038/so-net-u-page-plus-m95h2e7232gc4qj/",
+        items
+      )
+      if code == 200 or code == 409 then
+        break
+      end
+      io.stdout:write("Could not queue new items.\n")
+      io.stdout:flush()
+      os.execute("sleep " .. math.floor(math.pow(2, tries)))
+      tries = tries + 1
+    end
+    if tries == 10 then
+      abortgrab = true
+    end
+  end
+end
 
 wget.callbacks.before_exit = function(exit_status, exit_status_string)
   if abortgrab == true then

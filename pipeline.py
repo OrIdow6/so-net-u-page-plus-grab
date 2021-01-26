@@ -36,10 +36,7 @@ if StrictVersion(seesaw.__version__) < StrictVersion('0.8.5'):
 
 WGET_AT = find_executable(
     'Wget+AT',
-    [
-        'GNU Wget 1.20.3-at.20200919.01',
-        'GNU Wget 1.20.3-at.20201030.01'
-    ],
+    ['GNU Wget 1.20.3-at.20201030.01'],
     ['./wget-at']
 )
 
@@ -52,10 +49,11 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20210122.02'
+VERSION = '20210126.01'
 USER_AGENT = 'Archive Team'
 TRACKER_ID = 'so-net-u-page-plus'
 TRACKER_HOST = 'trackerproxy.archiveteam.org'
+MULTI_ITEM_SIZE = 1
 
 
 ###########################################################################
@@ -104,8 +102,9 @@ class PrepareDirectories(SimpleTask):
 
     def process(self, item):
         item_name = item['item_name']
-        escaped_item_name = item_name.replace(':', '_').replace('/', '_').replace('~', '_')
-        dirname = '/'.join((item['data_dir'], escaped_item_name[:30]))
+        item_name_hash = hashlib.sha1(item_name.encode('utf8')).hexdigest()
+        escaped_item_name = item_name_hash
+        dirname = '/'.join((item['data_dir'], escaped_item_name))
 
         if os.path.isdir(dirname):
             shutil.rmtree(dirname)
@@ -115,12 +114,12 @@ class PrepareDirectories(SimpleTask):
         item['item_dir'] = dirname
         item['warc_file_base'] = '-'.join([
             self.warc_prefix,
-            #escaped_item_name[:45],
-            hashlib.sha1(item_name.encode('utf8')).hexdigest(),
+            item_name_hash,
             time.strftime('%Y%m%d-%H%M%S')
         ])
 
         open('%(item_dir)s/%(warc_file_base)s.warc.gz' % item, 'w').close()
+        open('%(item_dir)s/%(warc_file_base)s_bad-items.txt' % item, 'w').close()
         open('%(item_dir)s/%(warc_file_base)s_data.txt' % item, 'w').close()
 
 class MoveFiles(SimpleTask):
@@ -129,11 +128,36 @@ class MoveFiles(SimpleTask):
 
     def process(self, item):
         os.rename('%(item_dir)s/%(warc_file_base)s.warc.gz' % item,
-            '%(data_dir)s/%(warc_file_base)s.warc.gz' % item)
+              '%(data_dir)s/%(warc_file_base)s.warc.gz' % item)
         os.rename('%(item_dir)s/%(warc_file_base)s_data.txt' % item,
-            '%(data_dir)s/%(warc_file_base)s_data.txt' % item)
+              '%(data_dir)s/%(warc_file_base)s_data.txt' % item)
 
         shutil.rmtree('%(item_dir)s' % item)
+
+
+class SetBadUrls(SimpleTask):
+    def __init__(self):
+        SimpleTask.__init__(self, 'SetBadUrls')
+
+    def process(self, item):
+        item['item_name_original'] = item['item_name']
+        items = item['item_name'].split('\0')
+        items_lower = [s.lower() for s in items]
+        with open('%(item_dir)s/%(warc_file_base)s_bad-items.txt' % item, 'r') as f:
+            for aborted_item in f:
+                aborted_item = aborted_item.strip().lower()
+                index = items_lower.index(aborted_item)
+                item.log_output('Item {} is aborted.'.format(aborted_item))
+                items.pop(index)
+                items_lower.pop(index)
+        item['item_name'] = '\0'.join(items)
+
+
+class MaybeSendDoneToTracker(SendDoneToTracker):
+    def enqueue(self, item):
+        if len(item['item_name']) == 0:
+            return self.complete_item(item)
+        return super(MaybeSendDoneToTracker, self).enqueue(item)
 
 
 def get_hash(filename):
@@ -178,30 +202,28 @@ class WgetArgs(object):
             '--waitretry', '30',
             '--warc-file', ItemInterpolation('%(item_dir)s/%(warc_file_base)s'),
             '--warc-header', 'operator: Archive Team',
-            '--warc-header', 'so-net-u-page-plus-dld-script-version: ' + VERSION,
-            '--warc-header', ItemInterpolation('so-net-u-page-plus: %(item_name)s'),
+            '--warc-header', 'x-wget-at-project-version: ' + VERSION,
+            '--warc-header', 'x-wget-at-project-name: ' + TRACKER_ID,
             '--warc-dedup-url-agnostic',
         ]
 
-        item_name = item['item_name']
-        item_type, item_value = item_name.split(':')
+        for item_name in item['item_name'].split('\0'):
+            wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
+            wget_args.append('item-name://'+item_name)
+            item_type, item_value = item_name.split(':', 1)
+            if item_type == "userdir":
+                wget_args.extend(['--warc-header', 'so-net-u-page-plus-userdir: ' + item_value])
+                hostname = item_value.split("/")[0]
+                user_dir_name = item_value.split("/")[1]
+                wget_args.append('http://{}.upp.so-net.ne.jp/{}/'.format(hostname, user_dir_name))
+                # Alternate forms, because I amn't sure how they parse this
+                wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.htm'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.html'.format(hostname, user_dir_name))
+                wget_args.append('http://{}.upp.so-net.ne.jp/{}'.format(hostname, user_dir_name))
+            else:
+                raise ValueError('item_type not supported.')
 
-        item['item_type'] = item_type
-        item['item_value'] = item_value
-
-        if item_type == "userdir":
-            wget_args.extend(['--warc-header', 'so-net-u-page-plus-userdir: ' + item_value])
-
-            hostname = item_value.split("/")[0]
-            user_dir_name = item_value.split("/")[1]
-
-            wget_args.append('http://{}.upp.so-net.ne.jp/{}/'.format(hostname, user_dir_name))
-            # Alternate forms, because I amn't sure how they parse this
-            wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.htm'.format(hostname, user_dir_name))
-            wget_args.append('http://{}.upp.so-net.ne.jp/{}/index.html'.format(hostname, user_dir_name))
-            wget_args.append('http://{}.upp.so-net.ne.jp/{}'.format(hostname, user_dir_name))
-        else:
-            raise ValueError('item_type not supported.')
+        item['item_name_newline'] = item['item_name'].replace('\0', '\n')
 
         if 'bind_address' in globals():
             wget_args.extend(['--bind-address', globals()['bind_address']])
@@ -220,17 +242,16 @@ class WgetArgs(object):
 project = Project(
     title = 'So-Net U-Page+',
     project_html = '''
-    <img class="project-logo" alt="logo" src="https://www.archiveteam.org/images/Archiveteamsmall.png?959ea" height="50px"/>
+    <img class="project-logo" alt="logo" src="https://wiki.archiveteam.org/images/6/62/So-net-logo.png" height="50px"/>
     <h2>So-Net U-Page+ <span class="links"><a href="https://www.so-net.ne.jp/option/upp/">Website</a> &middot; <a href="http://tracker.archiveteam.org/so-net-u-page-plus/">Leaderboard</a></span></h2>
-    ''',
-# may cause errors on different python versions.
-#    utc_deadline = datetime.datetime.fromisoformat('2020-12-31 00:00:00+00:00')
+    '''
 )
 
 pipeline = Pipeline(
     CheckIP(),
-    GetItemFromTracker('http://%s/%s' % (TRACKER_HOST, TRACKER_ID), downloader,
-        VERSION),
+    GetItemFromTracker('http://{}/{}/multi={}/'
+        .format(TRACKER_HOST, TRACKER_ID, MULTI_ITEM_SIZE),
+        downloader, VERSION),
     PrepareDirectories(warc_prefix='so-net-u-page-plus'),
     WgetDownload(
         WgetArgs(),
@@ -238,11 +259,10 @@ pipeline = Pipeline(
         accept_on_exit_code=[0, 4, 8],
         env={
             'item_dir': ItemValue('item_dir'),
-            'item_type': ItemValue('item_type'),
-            'item_value': ItemValue('item_value'),
             'warc_file_base': ItemValue('warc_file_base'),
         }
     ),
+    SetBadUrls(),
     PrepareStatsForTracker(
         defaults={'downloader': downloader, 'version': VERSION},
         file_groups={
@@ -275,7 +295,7 @@ pipeline = Pipeline(
             ]
         ),
     ),
-    SendDoneToTracker(
+    MaybeSendDoneToTracker(
         tracker_url='http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
         stats=ItemValue('stats')
     )

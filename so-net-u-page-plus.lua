@@ -70,6 +70,9 @@ allowed = function(url)
     if a == item_host and b == item_user_dir then
       return true
     else
+      if string.match(a, "^http://.*") then
+        a = string.gsub(a, "http://", "")
+      end
       discovered["userdir:" .. a .. "/" .. b] = true
     end
   end
@@ -291,11 +294,13 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
   file:close()]]
   local items = nil
   for item, _ in pairs(discovered) do
-    print('found item', item)
-    if items == nil then
-      items = item
-    else
-      items = items .. "\0" .. item
+    if string.match(item, '^userdir:www%d%d%d/[^/]+$') then
+      print('found item', item)
+      if items == nil then
+        items = item
+      else
+        items = items .. "\0" .. item
+      end
     end
   end
   if items ~= nil then

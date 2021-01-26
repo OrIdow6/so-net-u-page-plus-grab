@@ -170,7 +170,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       or string.match(newurl, "^android%-app:")
       or string.match(newurl, "^ios%-app:")
       or string.match(newurl, "^%${")) then
-      check(urlparse.absolute(url, "/" .. newurl))
+      check(urlparse.absolute(url, newurl))
     end
   end
 

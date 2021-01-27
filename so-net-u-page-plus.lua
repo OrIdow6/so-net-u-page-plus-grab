@@ -257,13 +257,13 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     local maxtries = 12
     if not allowed(url["url"], nil) then
-      maxtries = 3
+      maxtries = 2
     end
     if tries >= maxtries then
       io.stdout:write("I give up...\n")
       io.stdout:flush()
       tries = 0
-      if maxtries == 3 then
+      if maxtries == 2 then
         return wget.actions.EXIT
       else
         return wget.actions.ABORT
